@@ -120,73 +120,26 @@ def set_dive_climb(dive_letter):
 
 
 # TODO: create start mission function! 
-# def start_mission():
-#     pass
+def start_mission():
+    print("sch: start mission has been called!")
+    pass
 
 # TODO: Make the send FKW_results function in another file
 #        Also handle tracking what files have been sent here
 #        This function should be called with no args! 
 #        Old function is saved for reference!
 
-    # def send_fkw_results_and_prompt(ser):
-    #     # TODO: rebuild this function into something more robust
-    #     ''' A temporary function designed to send the latest FKW_detector results
-    #     over serial to the seaglider when the 'download' command comes in. '''
-
-    #     print(f"sch: send_fkw_results_and_prompt has been called")
-
-    #     # If main is running, tack on an extra message
-    #     if is_main_running():
-    #         main_is_running_message = "MAIN WAS RUNNING WHILE 'download' WAS CALLED!!!"
-    #         ser.write(main_is_running_message.encode('utf-8'))
-            
-
-    #     # Match all .csv files in the target directory
-    #     search_pattern = os.path.join(FKW_RESULTS_PATH, '*.csv')
-    #     csv_files = glob.glob(search_pattern)
-        
-    #     if not csv_files:
-    #         print(f"ERROR: sch: No CSV files found in {FKW_RESULTS_PATH}")
-    #         no_packets_message = f"Uh oh, there are not any packets in {FKW_RESULTS_PATH}, so you get this message instead\n"
-    #         ser.write(no_packets_message.encode('utf-8'))
-    #         ser.write(f"\r\n{PROMPT}".encode('utf-8'))
-    #         ser.flush()  # Ensure data leaves the buffer immediately
-    #         return
-
-    #     # Find the most recently modified CSV file
-    #     latest_file = max(csv_files, key=os.path.getmtime)
-    #     print(f"sch: Sending contents of latest log: {latest_file}")
-
-    #     # Read and send file contents
-    #     try:
-    #         with open(latest_file, 'r') as f:
-    #             file_contents = f.read()
-                    
-    #         #print(f"file contents: {file_contents}")
-    #         # Send CSV data
-    #         ser.write(file_contents.encode('utf-8'))
-            
-    #         # Ensure a terminator sequence precedes the prompt if the file doesn't end with a newline
-    #         if not file_contents.endswith('\n') and not file_contents.endswith('\r'):
-    #             ser.write(b'\n')
-
-    #         # Send the PROMPT string
-    #         ser.write(f"\r\n{PROMPT}".encode('utf-8'))
-    #         ser.flush()
-
-    #         print(f"sch: FKW results and prompt successfully sent over serial.")
-            
-    #     except Exception as e:
-    #         print(f"ERROR: sch: Error reading or transmitting file: {e}")
-
-
+def send_fkw_results(): 
+    print("sch: send fkw results has been called!")
+   
 
 # ==============================================================================
 # --- Process Control Helpers ---
 # ==============================================================================
 
-# def shutdown_pi():
-#     shutdown the raspberry pi once all tasks are finished. 
+def shutdown_pi():
+    '''shutdown the raspberry pi once all tasks are finished.'''
+    print("sch: Warning: shutdown pi has been called (but is an empty funciton)")
 
 
 
@@ -232,7 +185,7 @@ def run_serial_handler():
                 # ===========================================
                 # -- Handle START ('start') scenario --
                 # ===========================================
-                if cmd.startswith('start'): # TODO: make this more robust maybe using a switch statement
+                if cmd.startswith('start'): 
 
                     parsed_start_cmd = [item.strip() for item in cmd.split(",")]
                     print(f"sch: start case: parsed_start_cmd -> {parsed_start_cmd}")
@@ -250,14 +203,15 @@ def run_serial_handler():
                     set_pi_datetime(pi_date)
                     set_dive_climb(pi_dive)
 
-                    #start_main_dot_py()
+                    start_mission() 
+                    shutdown_pi() # Once finished, the pi should shutdown
 
                 # ===========================================
                 # -- Handle DOWNLOAD ('download') scenario --
                 # ===========================================
                 elif 'download' in cmd:
                     print(f"sch: download case received -> [{cmd}]")
-                    # TODO: call send results function
+                    send_fkw_results() # Send the fkw results over serial
 
         # Small sleep to prevent aggressive CPU spinning when idle
         time.sleep(0.05)
