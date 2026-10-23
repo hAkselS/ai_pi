@@ -20,17 +20,17 @@ import pandas
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
-import audio_transform.audio_to_spectro as audio_to_spectro
-import audio_transform.dat_to_wav as dat_to_wav
-import image_inference.inference as inference
-import image_inference.packetize_results as packetize_results
+import fkw_detector.audio_to_spectro as audio_to_spectro
+import fkw_detector.dat_to_wav as dat_to_wav
+import fkw_detector.inference as inference
+import fkw_detector.packetize_results as packetize_results
 
-###################################################################
-# CONFIGURATION DEFAULTS
+# ==============================================================================
+# --- Configuration Defaults ---
 wave_output_dir = project_root + '/data_products/wave_outputs'
 spectro_output_dir = project_root + '/data_products/spectro_outputs'
 inference_output_dir = project_root + '/data_products/inference_outputs'
-###################################################################
+# ==============================================================================
 
 
 def process_audio_and_inference(input_csv, model_path, confidence_threshold): # Input CSV with file path
