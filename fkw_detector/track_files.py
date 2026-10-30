@@ -44,12 +44,51 @@ sys.path.append(project_root)
 
 # ==============================================================================
 # --- Configuration Defaults ---
-WISPR_MEMORY_PATH = project_root + '/2024_descent'   # TODO: Get this path from another script
-LOGS_DIR = "./analyst_logs"       # Directory where daily CSVs will be saved
+wispr_memory_path = project_root + '/2024_descent'   # TODO: Get this path from another script
+LOGS_DIR = project_root +"/analyst_logs"       # Directory where daily CSVs will be saved
 SAMPLING_RATE = 3                 # Pick 1 in every N files (e.g., 3)
+DATE_TRACK_CSV= LOGS_DIR + "/observed_dates.csv"
+# ==============================================================================
+
+# ==============================================================================
+# --- CSV Configurations ---
+date_tracker_header = ['directory']
 
 # ==============================================================================
 
+def read_updated_memory_path():
+    '''Get the most updated wispr memory path 
+    from a yaml file or other script'''
+    pass
+
+def create_or_check_date_CSV(LOGS_DIR=LOGS_DIR):
+    # Check if the directory exists
+    if not os.path.isdir(LOGS_DIR):
+        os.makedirs(LOGS_DIR)
+    else:
+        # Check if the CSV file exists
+        if not os.path.isfile(DATE_TRACK_CSV):
+            # Create the file and add the header
+            with open(DATE_TRACK_CSV, 'w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(date_tracker_header)       
+    
+
+def find_all_date_folders(wispr_memory_path=wispr_memory_path, LOGS_DIR=LOGS_DIR):
+    if os.path.exists(wispr_memory_path):
+        directories_list = os.listdir(wispr_memory_path)
+        print ("Directories List:")
+        print(directories_list)
+        # Add directoies into the master list in order
+        # for i in directories_list:
+
+    else:
+        print(f"tf: ERROR: wispr memory path ({wispr_memory_path}) does not exist!")
 
 
+def main():
+    create_or_check_date_CSV()
+    find_all_date_folders()
 
+if __name__ == "__main__":
+    main()
