@@ -35,6 +35,7 @@ import os
 import sys
 import re
 import csv
+import numpy as np
 from collections import defaultdict
 from pathlib import Path
 
@@ -52,7 +53,7 @@ DATE_TRACK_CSV= LOGS_DIR + "/observed_dates.csv"
 
 # ==============================================================================
 # --- CSV Configurations ---
-date_tracker_header = ['directory']
+date_tracker_header = ['directory', 'completed']
 
 # ==============================================================================
 
@@ -65,22 +66,48 @@ def create_or_check_date_CSV(LOGS_DIR=LOGS_DIR):
     # Check if the directory exists
     if not os.path.isdir(LOGS_DIR):
         os.makedirs(LOGS_DIR)
-    else:
-        # Check if the CSV file exists
-        if not os.path.isfile(DATE_TRACK_CSV):
-            # Create the file and add the header
-            with open(DATE_TRACK_CSV, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file)
-                writer.writerow(date_tracker_header)       
     
+    # Check if the CSV file exists
+    if not os.path.isfile(DATE_TRACK_CSV):
+        # Create the file and add the header
+        with open(DATE_TRACK_CSV, 'w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow(date_tracker_header)       
+
 
 def find_all_date_folders(wispr_memory_path=wispr_memory_path, LOGS_DIR=LOGS_DIR):
     if os.path.exists(wispr_memory_path):
-        directories_list = os.listdir(wispr_memory_path)
+        
+        # directories_list = np.array(os.listdir(wispr_memory_path))
+        valid_dirs = [
+            item
+            for item in os.listdir(wispr_memory_path)
+            if item.isdigit()
+            and len(item) ==6
+            and os.path.isdir(os.path.join(wispr_memory_path,item))
+        ]
+
+        array_of_directories = np.sort(valid_dirs)
         print ("Directories List:")
-        print(directories_list)
+        print(array_of_directories)
+        print(array_of_directories[1])
+
+
         # Add directoies into the master list in order
-        # for i in directories_list:
+        date_csv = os.path.exists(DATE_TRACK_CSV)
+
+
+        # Add all values that are greater than the current last entry
+        if date_csv:
+            with open(DATE_TRACK_CSV, mode='r+', encoding='utf-8') as date_csv_file:
+                num_rows = sum(1 for row in date_csv_file)
+                writer = csv.writer(date_csv_file)
+                index = 1
+                for d in array_of_directories:
+                    if index >= num_rows:
+                        writer.writerow([d, False])
+                    index = index + 1 
+
 
     else:
         print(f"tf: ERROR: wispr memory path ({wispr_memory_path}) does not exist!")
