@@ -60,13 +60,14 @@ sys.path.append(project_root)
 
 # ==============================================================================
 # --- Configuration Defaults ---
-wispr_memory_path = project_root + '/2024_descent'   # TODO: Get this path from another script
+local_audio_path = project_root + '/2024_descent'   # TODO: Get this path from another script
 LOGS_DIR = project_root +"/analyst_logs"       # Directory where daily CSVs will be saved
 SAMPLING_RATE = 3                 # Pick 1 in every N files (e.g., 3)
 DATE_TRACK_CSV= LOGS_DIR + "/observed_dates.csv" # This is one file created and maintained by this script
 
 # --- CSV Configurations ---
 date_tracker_header = ['directory', 'indexed', 'completed']
+file_tracker_header = ['file_name_and_path', 'select_for_sampling', 'attemped_sampling', 'sample_success']
 # ==============================================================================
 
 
@@ -95,8 +96,6 @@ def read_updated_memory_path():
     from a yaml file or other script'''
     pass
 
-# ==============================================================================
-
 def create_or_check_dateCSV(LOGS_DIR=LOGS_DIR):
     # Check if the directory exists
     if not os.path.isdir(LOGS_DIR):
@@ -107,10 +106,14 @@ def create_or_check_dateCSV(LOGS_DIR=LOGS_DIR):
         # Create the file and add the header
         with open(DATE_TRACK_CSV, 'w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
-            writer.writerow(date_tracker_header)       
+            writer.writerow(date_tracker_header)
+
+# ==============================================================================
+
+ 
 
 
-def find_all_date_folders(wispr_memory_path=wispr_memory_path, LOGS_DIR=LOGS_DIR):
+def find_all_date_folders(local_audio_path=local_audio_path):
     '''
     This function uses os.listdir to create a sorted current !!!ARRAY!!! of directories.
     This function compares the directories in the current ARRAY to the potentially obsolete 
@@ -118,15 +121,15 @@ def find_all_date_folders(wispr_memory_path=wispr_memory_path, LOGS_DIR=LOGS_DIR
     greater in value, are added to the CSV of existing date folders.
 
     '''
-    if os.path.exists(wispr_memory_path):
+    if os.path.exists(local_audio_path):
         
         # --- Create a sorted array of int(directories) ---
         valid_dirs = [
             item
-            for item in os.listdir(wispr_memory_path)
+            for item in os.listdir(local_audio_path)
             if item.isdigit()
             and len(item) ==6
-            and os.path.isdir(os.path.join(wispr_memory_path,item))
+            and os.path.isdir(os.path.join(local_audio_path,item))
         ]
 
         # Sort and convert to integers
@@ -193,13 +196,62 @@ def find_all_date_folders(wispr_memory_path=wispr_memory_path, LOGS_DIR=LOGS_DIR
                 return False # Check this return value 
 
     else:
-        print(f"tf: ERROR: wispr memory path ({wispr_memory_path}) does not exist!")
+        print(f"tf: ERROR: wispr memory path ({local_audio_path}) does not exist!")
         return False
+
+def find_all_files(local_audio_path=local_audio_path):
+    '''
+    Iterate through the directories and store all file names with required fields set to false. 
+    '''
+
+    # --- Create an collection of files via observed dates list --- 
+    with open(DATE_TRACK_CSV, mode='r', encoding='utf-8') as date_csv_file:
+        reader = csv.DictReader(date_csv_file)
+        for row in reader:
+            # TODO: never mark the most recent directory as indexed... new files could still be coming. 
+            curr_date_directory = row["directory"]
+            indexed = row["indexed"]
+            curr_date_directory_path = os.path.join(local_audio_path, curr_date_directory)
+            audio_files_per_day_csv_path = os.path.join(LOGS_DIR, curr_date_directory) + '.csv'
+
+            # DEBUG
+            # print(f'file directory = {audio_files_per_day_csv_path}')
+
+            # --- Add new files to appropriate CSVs ---
+            if indexed == "False":
+                if audio_files_per_day_csv_path is not os.path.isfile(audio_files_per_day_csv_path):
+                    # Make new csv file
+                    with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8'):
+                        # Validate the files that will be input
+                        audio_files = [
+                                    item
+                                    for item in os.listdir(curr_date_directory_path)
+                                    if item.startswith("WISPR")
+                                    and item.endswith(".dat")
+                                    and len(item) == 23
+                                    and os.path.isfile(os.path.join(curr_date_directory_path,item))
+                                ]
+                        # DEBUG
+                        if len(audio_files) > 0:
+                            print(f'audio_files are {audio_files}')
+
+                        # Put items in new csv file
+                        # TODO: left off here
+                        # am currently making CSV files but not putting anything in them yet
+
+                        
+
+                        
+                       
+
+            # Case 2: File exists but is not up to date
+
 
 
 def main():
     create_or_check_dateCSV()
     find_all_date_folders()
+    find_all_files()
 
 if __name__ == "__main__":
     main()
