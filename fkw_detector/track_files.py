@@ -34,6 +34,12 @@ Spec:   This script manages a list of all files seen by ai_pi repository.
 
         Which is used by transform_and_inference to understand what files need
         to be analyzed next.
+
+        Note: This script looks at the most recent date directory
+        and compares it to the most recent date directory stored in
+        analyst_logs/observed_dates.csv. This means that if new
+        dates appear that are BEFORE the most latest date, this
+        script will ignore them and assume all dates are processed. 
        
 
 I/O:    This program looks at the data stored on the WISPR
@@ -221,7 +227,12 @@ def find_all_files(local_audio_path=local_audio_path):
             if indexed == "False":
                 if audio_files_per_day_csv_path is not os.path.isfile(audio_files_per_day_csv_path):
                     # Make new csv file
-                    with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8'):
+                    with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8') as audio_files_per_day_csv_file:
+                        ''' 
+                        BE AWARE: I use write mode when I open the CSV, that means the header
+                        and entire file contents will be LOST and over written each
+                        time the file is opened
+                        '''
                         # Validate the files that will be input
                         audio_files = [
                                     item
@@ -232,14 +243,27 @@ def find_all_files(local_audio_path=local_audio_path):
                                     and os.path.isfile(os.path.join(curr_date_directory_path,item))
                                 ]
                         # DEBUG
-                        if len(audio_files) > 0:
-                            print(f'audio_files are {audio_files}')
+                        # if len(audio_files) > 0:
+                        #     print(f'audio_files are {audio_files}')
 
-                        # Put items in new csv file
-                        # TODO: left off here
-                        # am currently making CSV files but not putting anything in them yet
-
+                        # --- Add all the audio file names into the audio files per day csv ---
                         
+                        writer = csv.writer(audio_files_per_day_csv_file)
+
+                        # TODO: remove the three commented lined below this. 
+                        # Check for header and apply if necessary
+                        # file_is_empty = not os.path.exists(audio_files_per_day_csv_path) or os.path.getsize(audio_files_per_day_csv_path) == 0
+                        # if file_is_empty:
+                        writer.writerow(file_tracker_header)
+
+                        if len(audio_files) > 0:
+                            for file_name in audio_files:
+                                writer.writerow([file_name, False, False, False])
+
+                    # After lunch:
+                    # Need to all files, except the last one, as 'indexed' so that they are not 
+                    # Over written every single run. 
+    
 
                         
                        
