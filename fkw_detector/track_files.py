@@ -262,7 +262,8 @@ def find_all_files(local_audio_path=local_audio_path):
 
                     # After lunch:
                     # Need to all files, except the last one, as 'indexed' so that they are not 
-                    # Over written every single run. 
+                    # Overwritten every single run. 
+                    # Add path to file names.
     
 
                         
