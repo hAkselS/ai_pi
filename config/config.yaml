@@ -1,5 +1,5 @@
 WISPR3_DATA_DIR: ~/FKW_detector/2024_descent
-SSD_DIR: ~/FKW_detector/2024_descent_copy
+SSD_DIR: 2024_descent
 DIVE_CLIMB: a
 DATE_TIME: '2026-08-19 20:59:20'
 SERIAL_PORT: /dev/ttys001
@@ -7,3 +7,4 @@ BAUD_RATE: 9600
 TERMINATOR: "\r"
 DELIMITER: ','
 PROMPT: P>
+SAMPLE_EVERY_X_FILES: 5

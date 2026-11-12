@@ -40,7 +40,7 @@ import glob
 # --- Configuration Defaults ---
 CONFIG_PATH = 'config/config.yaml'
 MAIN_SCRIPT_PATH = 'pi_logger/main.py'  # Path to main.py relative to this script
-FKW_RESULTS_PATH = os.path.expanduser('~/FKW_detector/data_products/packets')
+FKW_RESULTS_PATH = os.path.expanduser('~/FKW_detector/data_products/packets') # TODO: update for AI_PI
 # ------------------------------------------------------------------------------
 
 # --- YAML Configuration Defaults ---

@@ -54,11 +54,11 @@ Usage:  python3 fkw_detector/track_files.py
 
 import os
 import sys
-import re
 import csv
+import yaml
 import numpy as np
-from collections import defaultdict
-from pathlib import Path
+# from collections import defaultdict
+# from pathlib import Path
 
 # Add project root to sys.path so audio_transform can be imported
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -66,14 +66,27 @@ sys.path.append(project_root)
 
 # ==============================================================================
 # --- Configuration Defaults ---
-local_audio_path = project_root + '/2024_descent'   # TODO: Get this path from another script
+# local_audio_path = project_root + '/2024_descent'   # TODO: Get this path from another script
 LOGS_DIR = project_root +"/analyst_logs"       # Directory where daily CSVs will be saved
 SAMPLING_RATE = 3                 # Pick 1 in every N files (e.g., 3)
 DATE_TRACK_CSV= LOGS_DIR + "/observed_dates.csv" # This is one file created and maintained by this script
+CONFIG_PATH = "config/config.yaml"
 
 # --- CSV Configurations ---
 date_tracker_header = ['directory', 'indexed', 'completed']
 file_tracker_header = ['file_name_and_path', 'select_for_sampling', 'attemped_sampling', 'sample_success']
+
+# --- YAML Configuration Defaults ---
+try:
+    with open(CONFIG_PATH, "r") as config_file:
+        config = yaml.safe_load(config_file) or {}
+except (FileNotFoundError, PermissionError):
+    print("ERROR: sch: YAML failed to open for initial configs")
+    config = {}  # File couldn't be opened, fall back to empty dict
+
+# # .get() keeps the system running even if theres trouble in yaml town
+LOCAL_AUDIO_PATH = config.get("SSD_DIR", '2024_descent') # TODO: make this pi relevant
+SAMPLE_EVERY_X_FILES = config.get("SAMPLE_EVERY_X_FILES", 4)
 # ==============================================================================
 
 
@@ -119,7 +132,7 @@ def create_or_check_dateCSV(LOGS_DIR=LOGS_DIR):
  
 
 
-def find_all_date_folders(local_audio_path=local_audio_path):
+def find_all_date_folders(local_audio_path=LOCAL_AUDIO_PATH):
     '''
     This function uses os.listdir to create a sorted current !!!ARRAY!!! of directories.
     This function compares the directories in the current ARRAY to the potentially obsolete 
@@ -205,73 +218,82 @@ def find_all_date_folders(local_audio_path=local_audio_path):
         print(f"tf: ERROR: wispr memory path ({local_audio_path}) does not exist!")
         return False
 
-def find_all_files(local_audio_path=local_audio_path):
+def find_all_files(local_audio_path=LOCAL_AUDIO_PATH):
     '''
     Iterate through the directories and store all file names with required fields set to false. 
+    Apply selected for sampling to appropriate files.
     '''
 
     # --- Create an collection of files via observed dates list --- 
-    with open(DATE_TRACK_CSV, mode='r', encoding='utf-8') as date_csv_file:
-        reader = csv.DictReader(date_csv_file)
-        for row in reader:
-            # TODO: never mark the most recent directory as indexed... new files could still be coming. 
-            curr_date_directory = row["directory"]
-            indexed = row["indexed"]
-            curr_date_directory_path = os.path.join(local_audio_path, curr_date_directory)
-            audio_files_per_day_csv_path = os.path.join(LOGS_DIR, curr_date_directory) + '.csv'
+    with open(DATE_TRACK_CSV, mode='r', encoding='utf-8', newline='') as observed_dates_csv:
+        reader = csv.DictReader(observed_dates_csv)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
 
-            # DEBUG
-            # print(f'file directory = {audio_files_per_day_csv_path}')
+    if not rows:
+        print(f"tf: WARNING: no rows in {DATE_TRACK_CSV}")
+        return 
 
-            # --- Add new files to appropriate CSVs ---
-            if indexed == "False":
-                if audio_files_per_day_csv_path is not os.path.isfile(audio_files_per_day_csv_path):
-                    # Make new csv file
-                    with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8') as audio_files_per_day_csv_file:
-                        ''' 
-                        BE AWARE: I use write mode when I open the CSV, that means the header
-                        and entire file contents will be LOST and over written each
-                        time the file is opened
-                        '''
-                        # Validate the files that will be input
-                        audio_files = [
-                                    item
-                                    for item in os.listdir(curr_date_directory_path)
-                                    if item.startswith("WISPR")
-                                    and item.endswith(".dat")
-                                    and len(item) == 23
-                                    and os.path.isfile(os.path.join(curr_date_directory_path,item))
-                                ]
-                        # DEBUG
-                        # if len(audio_files) > 0:
-                        #     print(f'audio_files are {audio_files}')
+    # Note the most recent directory, remember that the directories are ~already sorted~
+    most_recent_directory = rows[-1]["directory"]
 
-                        # --- Add all the audio file names into the audio files per day csv ---
-                        
-                        writer = csv.writer(audio_files_per_day_csv_file)
+    sampling_index_i = 1 
+    for row in rows:
+        # Skip if already indexed
+        if row["indexed"] != "False":
+            continue 
 
-                        # TODO: remove the three commented lined below this. 
-                        # Check for header and apply if necessary
-                        # file_is_empty = not os.path.exists(audio_files_per_day_csv_path) or os.path.getsize(audio_files_per_day_csv_path) == 0
-                        # if file_is_empty:
-                        writer.writerow(file_tracker_header)
+        # --- Index the date the directory into a new CSV file ---
+        curr_date_directory = row["directory"]
+        print(f"tf: Indexing new directory into {curr_date_directory}.csv") # Known conflict, prints even when no new directories are found b/c always re-index most recent directory
+        curr_date_directory_path = os.path.join(local_audio_path, curr_date_directory)
+        audio_files_per_day_csv_path = os.path.join(LOGS_DIR, curr_date_directory) + '.csv'
 
-                        if len(audio_files) > 0:
-                            for file_name in audio_files:
-                                writer.writerow([file_name, False, False, False])
+        audio_files = [
+            item
+            for item in os.listdir(curr_date_directory_path)
+            if item.startswith("WISPR")
+            and item.endswith(".dat")
+            and len(item) == 23
+            and os.path.isfile(os.path.join(curr_date_directory_path, item))
+        ]
 
-                    # After lunch:
-                    # Need to all files, except the last one, as 'indexed' so that they are not 
-                    # Overwritten every single run. 
-                    # Add path to file names.
-    
+        # Writer the per day CSV
+        # Note: Overwrites each time the file is opened here
+        with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8', newline='') as date_dot_csv:
+            writer = csv.writer(date_dot_csv)
 
-                        
-                       
+            # --- Write the header and the rows & select files for sampling ---
+            writer.writerow(file_tracker_header)
+            for file_name in audio_files:
+                # Select a file for sampling if modulo is zero
+                if (sampling_index_i % SAMPLE_EVERY_X_FILES) == 0:
+                    writer.writerow([file_name, True, False, False])
+                else:
+                    writer.writerow([file_name, False, False, False])
+                sampling_index_i = sampling_index_i + 1 
 
-            # Case 2: File exists but is not up to date
+        # Mark "indexed" in program memory
+        if curr_date_directory != most_recent_directory:
+            row["indexed"] = "True"
 
+    # Note a job well done       
+    print(f"tf: Populated date.csv(s) and selected files for sampling")
 
+    # --- Mark "indexed" = "True" in observed_dates.csv
+    with open(DATE_TRACK_CSV, mode='w', encoding='utf-8', newline='') as observed_dates_csv:
+        writer = csv.DictWriter(observed_dates_csv, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+      
+# TODO: create make menu 
+# Make menu should look at the most recent completed=False file and
+# Add all the files selected for sampling (along with their fully qualified paths)
+# to the menu
+# The menu function should look for a max number of files to add to the menu.
+# The menu function should start at the most recent file and work backwards through days
+# until it has added enough files to the menu
 
 def main():
     create_or_check_dateCSV()
