@@ -86,7 +86,8 @@ except (FileNotFoundError, PermissionError):
 
 # # .get() keeps the system running even if theres trouble in yaml town
 LOCAL_AUDIO_PATH = config.get("SSD_DIR", '2024_descent') # TODO: make this pi relevant
-SAMPLE_EVERY_X_FILES = config.get("SAMPLE_EVERY_X_FILES", 4)
+SAMPLE_EVERY_X_FILES = config.get("SAMPLE_EVERY_X_FILES", 4) # Sample every Xth file
+NUMBER_OF_SAMPLES = config.get("FKW_SAMPLES", 30) # Sample X total files
 # ==============================================================================
 
 
@@ -128,9 +129,6 @@ def create_or_check_dateCSV(LOGS_DIR=LOGS_DIR):
             writer.writerow(date_tracker_header)
 
 # ==============================================================================
-
- 
-
 
 def find_all_date_folders(local_audio_path=LOCAL_AUDIO_PATH):
     '''
@@ -294,6 +292,27 @@ def find_all_files(local_audio_path=LOCAL_AUDIO_PATH):
 # The menu function should look for a max number of files to add to the menu.
 # The menu function should start at the most recent file and work backwards through days
 # until it has added enough files to the menu
+def create_menu(LOGS_DIR=LOGS_DIR, NUMBER_OF_SAMPLES=NUMBER_OF_SAMPLES):
+    '''
+    Creat a file menu for the transform and inference script to ingest. 
+    '''
+    with open(DATE_TRACK_CSV, mode='r', encoding='utf-8', newline='') as observed_dates_csv:
+        reader = csv.DictReader(observed_dates_csv)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+
+    if not rows:
+        print(f"tf: WARNING: no rows in {DATE_TRACK_CSV}")
+        return 
+
+    ### TODO: Add number of samples worth of files into a date_time_menu.csv
+    # Make sure that the files include fully qualified paths, check the paths before putting in. 
+    # No need to mark anything here
+    # Name the menu "dive_start_time_menu"
+    # Ensure to include the date range into the menu somewhere
+    
+
+    
 
 def main():
     create_or_check_dateCSV()
