@@ -54,11 +54,9 @@ Usage:  python3 fkw_detector/track_files.py
 
 import os
 import sys
-import csv
 import yaml
-import numpy as np
-# from collections import defaultdict
-# from pathlib import Path
+import pandas as pd
+import sqlite3 as sql
 
 # Add project root to sys.path so audio_transform can be imported
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -71,10 +69,8 @@ LOGS_DIR = project_root +"/analyst_logs"       # Directory where daily CSVs will
 SAMPLING_RATE = 3                 # Pick 1 in every N files (e.g., 3)
 DATE_TRACK_CSV= LOGS_DIR + "/observed_dates.csv" # This is one file created and maintained by this script
 CONFIG_PATH = "config/config.yaml"
+DATABASE_NAME = "file_track.db"
 
-# --- CSV Configurations ---
-date_tracker_header = ['directory', 'indexed', 'completed']
-file_tracker_header = ['file_name_and_path', 'select_for_sampling', 'attemped_sampling', 'sample_success']
 
 # --- YAML Configuration Defaults ---
 try:
@@ -90,199 +86,15 @@ SAMPLE_EVERY_X_FILES = config.get("SAMPLE_EVERY_X_FILES", 4) # Sample every Xth 
 NUMBER_OF_SAMPLES = config.get("FKW_SAMPLES", 30) # Sample X total files
 # ==============================================================================
 
+# --- Helper Functions --- 
 
-# --- Helper Functions ---
-def has_only_header(file_path):
-    ''' Returns true if and only if there is exactly one non-empty line'''
-    with open(file_path, mode="r", newline="", encoding="utf-8") as file:
-        non_empty_rows = (row for row in csv.reader(file) if row)
-
-        header = next(non_empty_rows, None)
-
-        # Return false if the file is totally empty
-        if header is None:
-            return False
-
-        first_data_row = next(non_empty_rows, None)
-        if first_data_row == None:
-            return True
-
-        else: 
-            return False
+# Sqlite hello world 
 
 
-def read_updated_memory_path():
-    '''Get the most updated wispr memory path 
-    from a yaml file or other script'''
-    pass
 
-def create_or_check_dateCSV(LOGS_DIR=LOGS_DIR):
-    # Check if the directory exists
-    if not os.path.isdir(LOGS_DIR):
-        os.makedirs(LOGS_DIR)
-    
-    # Check if the CSV file exists
-    if not os.path.isfile(DATE_TRACK_CSV):
-        # Create the file and add the header
-        with open(DATE_TRACK_CSV, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow(date_tracker_header)
 
 # ==============================================================================
 
-def find_all_date_folders(local_audio_path=LOCAL_AUDIO_PATH):
-    '''
-    This function uses os.listdir to create a sorted current !!!ARRAY!!! of directories.
-    This function compares the directories in the current ARRAY to the potentially obsolete 
-    !!!CSV!!! of existing date folders. Any new date folders that are more recent, and therefor
-    greater in value, are added to the CSV of existing date folders.
-
-    '''
-    if os.path.exists(local_audio_path):
-        
-        # --- Create a sorted array of int(directories) ---
-        valid_dirs = [
-            item
-            for item in os.listdir(local_audio_path)
-            if item.isdigit()
-            and len(item) ==6
-            and os.path.isdir(os.path.join(local_audio_path,item))
-        ]
-
-        # Sort and convert to integers
-        array_of_directories = np.sort(valid_dirs)
-        array_of_directories = array_of_directories.astype(int)
-
-        # DEBUG
-        #print ("Directories List:")
-        #print(array_of_directories)
-        #print(array_of_directories[1])
-
-        # --- If the CSV is empty, populated it! ---
-        if has_only_header(DATE_TRACK_CSV):
-            # DEBUG
-            print(f'tf: ((Empty CSV with only header,')
-            print(f'tf:   populating [{len(array_of_directories)}] items from:')
-            print(f'tf:   [{DATE_TRACK_CSV}] \ntf:   into observed_dates.csv))')
-            with open(DATE_TRACK_CSV, mode="a", encoding="utf-8") as date_csv_file:
-                writer = csv.writer(date_csv_file)
-                for d in array_of_directories:
-                    writer.writerow([d,False,False])
-            # Exit the function with great success 
-            return True               
-
-
-        # --- If new directories, determine which ones are new! --- 
-        date_csv = os.path.exists(DATE_TRACK_CSV)
-        if date_csv:
-            # Get the latest & therefor largest value from the CSV file
-            with open(DATE_TRACK_CSV, mode='r+', encoding='utf-8') as date_csv_file:
-               
-               reader = csv.reader(date_csv_file)
-               last_row = None
-               for row in reader:
-                    if row:
-                        last_row = row  
-            
-            latest_csv_stored_directory = int(last_row[0])
-
-            # Get the latest & therefor largest value from the array of new and old directories
-            latest_array_stored_directory = array_of_directories[-1]
-
-            # --- Add new directories to CSV ---
-
-            # Case 1: new directories have been added
-            if latest_array_stored_directory > latest_csv_stored_directory:
-                print(f'tf: latest_array_stored_directory = [{latest_array_stored_directory}]')
-                print(f'tf: latest_csv_stored_directory = [{latest_csv_stored_directory}]')
-                with open(DATE_TRACK_CSV, mode='a', encoding='utf-8') as date_csv_file:
-                    writer = csv.writer(date_csv_file)
-                    for d in array_of_directories:
-                        if d > latest_csv_stored_directory:
-                            writer.writerow([d,False,False])
-                return True
-
-            # Case 2: no new files found
-            elif latest_array_stored_directory == latest_csv_stored_directory:
-                print('tf: No new files found')
-                return True
-
-            # Case 3: files have been deleted
-            elif latest_array_stored_directory < latest_csv_stored_directory:
-                print('tf: WARNING: latest array stored directory smaller than lastest CSV stored directory, was something deleted?')
-                return False # Check this return value 
-
-    else:
-        print(f"tf: ERROR: wispr memory path ({local_audio_path}) does not exist!")
-        return False
-
-def find_all_files(local_audio_path=LOCAL_AUDIO_PATH):
-    '''
-    Iterate through the directories and store all file names with required fields set to false. 
-    Apply selected for sampling to appropriate files.
-    '''
-
-    # --- Create an collection of files via observed dates list --- 
-    with open(DATE_TRACK_CSV, mode='r', encoding='utf-8', newline='') as observed_dates_csv:
-        reader = csv.DictReader(observed_dates_csv)
-        fieldnames = reader.fieldnames
-        rows = list(reader)
-
-    if not rows:
-        print(f"tf: WARNING: no rows in {DATE_TRACK_CSV}")
-        return 
-
-    # Note the most recent directory, remember that the directories are ~already sorted~
-    most_recent_directory = rows[-1]["directory"]
-
-    sampling_index_i = 1 
-    for row in rows:
-        # Skip if already indexed
-        if row["indexed"] != "False":
-            continue 
-
-        # --- Index the date the directory into a new CSV file ---
-        curr_date_directory = row["directory"]
-        print(f"tf: Indexing new directory into {curr_date_directory}.csv") # Known conflict, prints even when no new directories are found b/c always re-index most recent directory
-        curr_date_directory_path = os.path.join(local_audio_path, curr_date_directory)
-        audio_files_per_day_csv_path = os.path.join(LOGS_DIR, curr_date_directory) + '.csv'
-
-        audio_files = [
-            item
-            for item in os.listdir(curr_date_directory_path)
-            if item.startswith("WISPR")
-            and item.endswith(".dat")
-            and len(item) == 23
-            and os.path.isfile(os.path.join(curr_date_directory_path, item))
-        ]
-
-        # Writer the per day CSV
-        # Note: Overwrites each time the file is opened here
-        with open(audio_files_per_day_csv_path, mode='w', encoding='utf-8', newline='') as date_dot_csv:
-            writer = csv.writer(date_dot_csv)
-
-            # --- Write the header and the rows & select files for sampling ---
-            writer.writerow(file_tracker_header)
-            for file_name in audio_files:
-                # Select a file for sampling if modulo is zero
-                if (sampling_index_i % SAMPLE_EVERY_X_FILES) == 0:
-                    writer.writerow([file_name, True, False, False])
-                else:
-                    writer.writerow([file_name, False, False, False])
-                sampling_index_i = sampling_index_i + 1 
-
-        # Mark "indexed" in program memory
-        if curr_date_directory != most_recent_directory:
-            row["indexed"] = "True"
-
-    # Note a job well done       
-    print(f"tf: Populated date.csv(s) and selected files for sampling")
-
-    # --- Mark "indexed" = "True" in observed_dates.csv
-    with open(DATE_TRACK_CSV, mode='w', encoding='utf-8', newline='') as observed_dates_csv:
-        writer = csv.DictWriter(observed_dates_csv, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
 
       
 # TODO: create make menu 
@@ -315,9 +127,156 @@ def create_menu(LOGS_DIR=LOGS_DIR, NUMBER_OF_SAMPLES=NUMBER_OF_SAMPLES):
     
 
 def main():
-    create_or_check_dateCSV()
-    find_all_date_folders()
-    find_all_files()
+    pass 
+
 
 if __name__ == "__main__":
     main()
+
+### --- claude generated code --- 
+# Not yet tested 
+
+#     import os
+# import re
+# import sqlite3
+# from datetime import datetime, timezone
+
+# # --- Config ---
+# AUDIO_ROOT = "/path/to/2024_descent"       # root containing 241001/, 241002/, ...
+# DB_PATH = "/path/to/file_tracker.db"
+# SAMPLE_EVERY_N = 10                        # every Nth newly indexed file is selected
+
+# FILE_RE = re.compile(r"^WISPR_(\d{6})_(\d{6})\.dat$")
+# FOLDER_RE = re.compile(r"^\d{6}$")
+
+
+# def init_db(conn):
+#     conn.execute("PRAGMA journal_mode=WAL")
+#     conn.execute("PRAGMA synchronous=FULL")
+#     conn.executescript("""
+#         CREATE TABLE IF NOT EXISTS files (
+#             file_name_and_path  TEXT PRIMARY KEY,   -- relative to AUDIO_ROOT, e.g. 241001/WISPR_241001_000047.dat
+#             file_datetime_utc   TEXT NOT NULL,      -- YYYY-MM-DD HH:MM:SS, parsed from the file name
+#             indexed_at_utc      TEXT NOT NULL,      -- when this script added the row
+#             select_for_sampling INTEGER NOT NULL DEFAULT 0,
+#             attempted_sampling  INTEGER NOT NULL DEFAULT 0,
+#             sample_success      INTEGER NOT NULL DEFAULT 0
+#         );
+#         CREATE INDEX IF NOT EXISTS idx_pending
+#             ON files (select_for_sampling, attempted_sampling, file_name_and_path);
+
+#         CREATE TABLE IF NOT EXISTS meta (
+#             key   TEXT PRIMARY KEY,
+#             value INTEGER NOT NULL
+#         );
+#         INSERT OR IGNORE INTO meta (key, value) VALUES ('sample_counter', 0);
+#     """)
+#     conn.commit()
+
+
+# def find_all_files(audio_root=AUDIO_ROOT, db_path=DB_PATH, sample_every_n=SAMPLE_EVERY_N):
+#     """Scan every date folder, insert files not yet in the DB, flag every Nth for sampling."""
+#     conn = sqlite3.connect(db_path)
+#     try:
+#         init_db(conn)
+
+#         existing = {row[0] for row in conn.execute("SELECT file_name_and_path FROM files")}
+#         max_existing = max(existing) if existing else None
+
+#         new_files = []       # (rel_path, file_datetime_utc)
+#         out_of_order = []    # rel_paths that sort before already-indexed files
+#         skipped = 0
+
+#         date_dirs = sorted(
+#             d for d in os.listdir(audio_root)
+#             if FOLDER_RE.match(d) and os.path.isdir(os.path.join(audio_root, d))
+#         )
+#         for date_dir in date_dirs:
+#             date_dir_path = os.path.join(audio_root, date_dir)
+#             for file_name in list_audio_files(date_dir_path):
+#                 rel_path = f"{date_dir}/{file_name}"
+#                 if rel_path in existing:
+#                     continue
+
+#                 m = FILE_RE.match(file_name)
+#                 if not m or m.group(1) != date_dir:
+#                     skipped += 1
+#                     continue
+#                 try:
+#                     # Validates the date AND the time (e.g. rejects hour 25)
+#                     dt = datetime.strptime(m.group(1) + m.group(2), "%y%m%d%H%M%S")
+#                 except ValueError:
+#                     skipped += 1
+#                     continue
+
+#                 if max_existing is not None and rel_path < max_existing:
+#                     out_of_order.append(rel_path)
+
+#                 new_files.append((rel_path, dt.strftime("%Y-%m-%d %H:%M:%S")))
+
+#         # --- Summary warnings (one line each) ---
+#         if out_of_order:
+#             print(f"WARNING: {len(out_of_order)} new file(s) sort before already-indexed files "
+#                   f"(out-of-order arrival, e.g. {min(out_of_order)}); "
+#                   f"sampling selection may be uneven.")
+#         if skipped:
+#             print(f"WARNING: skipped {skipped} file(s) with malformed names, invalid timestamps, "
+#                   f"or a date that doesn't match their folder.")
+
+#         if not new_files:
+#             print("No new files to index.")
+#             return
+
+#         now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+#         with conn:
+#             counter = conn.execute("SELECT value FROM meta WHERE key='sample_counter'").fetchone()[0]
+
+#             rows = []
+#             for rel_path, file_dt in new_files:
+#                 counter += 1
+#                 selected = 1 if counter % sample_every_n == 0 else 0
+#                 rows.append((rel_path, file_dt, now_utc, selected))
+
+#             conn.executemany(
+#                 """INSERT OR IGNORE INTO files
+#                    (file_name_and_path, file_datetime_utc, indexed_at_utc, select_for_sampling)
+#                    VALUES (?, ?, ?, ?)""",
+#                 rows,
+#             )
+#             conn.execute("UPDATE meta SET value=? WHERE key='sample_counter'", (counter,))
+
+#         n_selected = sum(r[3] for r in rows)
+#         print(f"Indexed {len(rows)} new files ({n_selected} selected for sampling).")
+#     finally:
+#         conn.close()
+
+########### --- Analyzer side --- 
+# def get_next_file(conn):
+#     row = conn.execute("""
+#         SELECT file_name_and_path FROM files
+#         WHERE select_for_sampling = 1 AND attempted_sampling = 0
+#         ORDER BY file_name_and_path DESC
+#         LIMIT 1
+#     """).fetchone()
+#     return row[0] if row else None
+
+# def mark_result(conn, rel_path, success):
+#     with conn:
+#         conn.execute(
+#             "UPDATE files SET attempted_sampling = 1, sample_success = ? WHERE file_name_and_path = ?",
+#             (1 if success else 0, rel_path),
+#         )
+
+######## --- Description --- 
+Decisions and assumptions
+
+# No indexed flag. Every run re-lists all folders and inserts only files missing from the DB, so a partially filled newest folder just picks up its extra files next boot.
+# Path sorting equals chronological sorting. YYMMDD/WISPR_YYMMDD_NNNNNN.dat sorts correctly as plain text (as long as it stays within the same century), so ORDER BY ... DESC gives newest first.
+# Counter persists in the meta table, which cost only a few lines. Old selections never change, and a new SAMPLE_EVERY_N only applies to newly indexed files.
+# Out-of-order arrivals (#2) get a warning only, since that was the cheap option. The files are still indexed, just continuing the count.
+# “Date and UTC time” is stored as file_date (from the filename) and indexed_at_utc (when the script added the row). The 000047 part looks like a sequence number rather than a time, so I stored it as file_number. If it actually encodes a time of day, tell me how and I’ll parse it.
+# Column name fix: I spelled it attempted_sampling rather than attemped_sampling. Change it if you want the original spelling, but it needs to match in the analyzer.
+# Power-loss settings: WAL mode with synchronous=FULL, and each scan is one transaction, so a power cut leaves either the whole batch or none of it. Re-running just re-adds whatever was missing.
+# Mismatched files are skipped. Files whose name doesn’t match the regex, or whose date doesn’t match their folder, are skipped with a warning rather than indexed.
+
+# If you ever need to pause or inspect the DB from the shell, sqlite3 file_tracker.db "SELECT COUNT(*), SUM(select_for_sampling), SUM(attempted_sampling) FROM files;" gives a quick status summary.
