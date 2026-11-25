@@ -1,10 +1,9 @@
 '''
 File:   track_files.py
 
-Spec:   This script manages a list of all files seen by ai_pi repository.
-        This script should run after copy_to_pi has completed.
-        This script starts by creating or updating a CSV of all the WISPR
-        date directories (sorted). 
+Spec:   This script manages a SQLite database of all files seen by ai_pi repository.
+        This script should run after copy_to_pi.py has completed execution.
+        The database created by this script is...
 
         Files on the WISPR are organized as follows:
         /260929/
@@ -14,38 +13,23 @@ Spec:   This script manages a list of all files seen by ai_pi repository.
             /WISPR_260930_123456.dat
             /WISPR_260930_223456.dat
 
-        Observed_dates.csv looks like this:
-        directory,indexed,completed
-        240930,False,False
-        241001,False,False
-        
-        Where directory is the name of the directory, indexed indicates if all 
-        the file names in the directory have been added to another file, and 
-        completed indicates if the analyzes has finished said batch of files
-        
-        With a complete list of directories, this script checks this 'indexed'
-        column in the observed_dates.csv. If False, the script adds all
-        file names in said directory to a csv called **date**_files.csv.
-        **date**_files.csv contains:
-            - File name and local path
-            - Selected for sampling 
-            - Sampled
-            - Sample status
-
-        Which is used by transform_and_inference to understand what files need
+   
+        With a complete database of all the stored files, this script creates a 
+        CSV 'menu' which serves as a do-this-now mission directive
+        which is used by transform_and_inference to understand what files need
         to be analyzed next.
 
-        Note: This script looks at the most recent date directory
-        and compares it to the most recent date directory stored in
-        analyst_logs/observed_dates.csv. This means that if new
-        dates appear that are BEFORE the most latest date, this
-        script will ignore them and assume all dates are processed. 
+        # TODO: check for truth
+        # Note: This script looks at the most recent date directory
+        # and compares it to the most recent date directory stored in
+        # analyst_logs/observed_dates.csv. This means that if new
+        # dates appear that are BEFORE the most latest date, this
+        # script will ignore them and assume all dates are processed. 
        
 
-I/O:    This program looks at the data stored on the WISPR
-        and outputs a list of files per calendar (UTC) date).
-        The transform and inference script uses these file outputs to 
-        determine what to do next! 
+I/O:    This program looks at the from the WISPR data stored on the Raspberry Pi's
+        massive m.2 memory chip and creates a mission directive (menu) for 
+        transform and inference. 
 
 ID:     tf 
 
